@@ -11,6 +11,9 @@ from .. GraphicsWidget import GraphicsWidget
 from ... import debug as debug
 from ... import getConfigOption
 from ...Qt import isQObjectAlive
+# import logging
+# logger = logging.getLogger(__name__)
+# logger.setLevel(logging.DEBUG)
 
 __all__ = ['ViewBox']
 
@@ -19,8 +22,8 @@ class WeakList(object):
     def __init__(self):
         self._items = []
 
-    def append(self, obj):
         #Add backwards to iterate backwards (to make iterating more efficient on removal).
+    def append(self, obj):
         self._items.insert(0, weakref.ref(obj))
 
     def __iter__(self):
@@ -131,6 +134,7 @@ class ViewBox(GraphicsWidget):
         self._autoRangeNeedsUpdate = True ## indicates auto-range needs to be recomputed.
 
         self._lastScene = None  ## stores reference to the last known scene this view was a part of.
+        self._zoomMode = 'X' #None for default behaviour
         
         self.state = {
             
@@ -1155,6 +1159,14 @@ class ViewBox(GraphicsWidget):
     def getContextMenus(self, event):
         return self.menu.actions() if self.menuEnabled() else []
 
+
+    def mousePressEvent(self, event):
+        self.start_pos = event.pos()
+        self._zoomMode = 'X'
+        print('Mouse press detected')
+        event.ignore()
+        
+    
     def mouseDragEvent(self, ev, axis=None):
         ## if axis is specified, event will only affect that axis.
         ev.accept()  ## we accept all buttons
@@ -1174,16 +1186,48 @@ class ViewBox(GraphicsWidget):
         if ev.button() & (QtCore.Qt.LeftButton | QtCore.Qt.MidButton):
             if self.state['mouseMode'] == ViewBox.RectMode:
                 if ev.isFinish():  ## This is the final move in the drag; change the view scale now
-                    #print "finish"
+                    print("finish")
                     self.rbScaleBox.hide()
-                    ax = QtCore.QRectF(Point(ev.buttonDownPos(ev.button())), Point(pos))
-                    ax = self.childGroup.mapRectFromParent(ax)
-                    self.showAxRect(ax)
+                    
+                    #This works
+                    if self._zoomMode == 'X' or self._zoomMode == 'Y':
+                        geom = self.geometry()
+                        top = geom.top()
+                        bottom = geom.bottom()
+                        q1 = QtCore.QPointF(self.start_pos.x(),top)
+                        q2 = QtCore.QPointF(pos.x(),bottom)
+                        
+    #                         p1 = self.mapSceneToView(self.start_pos)
+    #                         p2 = self.mapSceneToView(pos)
+    #                         self.setRange(xRange=(p1.x(), p2.x()))
+                        ax = QtCore.QRectF(q1, q2)
+                        ax = self.childGroup.mapRectFromParent(ax)
+    #                         self.setRange(rect=ax, padding=0) #No padding is important
+                    else:
+                        ax = QtCore.QRectF(Point(ev.buttonDownPos(ev.button())), Point(pos))
+                        ax = self.childGroup.mapRectFromParent(ax)
+                        
+                    self.showAxRect(ax, pad=0)
                     self.axHistoryPointer += 1
                     self.axHistory = self.axHistory[:self.axHistoryPointer] + [ax]
-                else:
+                else: #if dragging
+                    delta = pos - self.start_pos
+                    dx = delta.x()
+                    dy = delta.y()
+                    
+                    if abs(dx) > abs(dy):
+                        if self._zoomMode != 'X':
+                            print('Zoom X')
+                            self._zoomMode = 'X'
+                        self.updateScaleBox_X(self.start_pos, ev.pos())
+                    else:
+                        if self._zoomMode != 'Y':
+                            print('Zoom Y')
+                            self._zoomMode = 'Y'
+                        self.updateScaleBox_Y(self.start_pos, ev.pos())
                     ## update shape of scale box
-                    self.updateScaleBox(ev.buttonDownPos(), ev.pos())
+#                     self.updateScaleBox(ev.buttonDownPos(), ev.pos())
+#                     self.updateScaleBox(self.start_pos, ev.pos())
             else:
                 tr = dif*mask
                 tr = self.mapToView(tr) - self.mapToView(Point(0,0))
@@ -1241,18 +1285,56 @@ class ViewBox(GraphicsWidget):
         ptr = max(0, min(len(self.axHistory)-1, self.axHistoryPointer+d))
         if ptr != self.axHistoryPointer:
             self.axHistoryPointer = ptr
-            self.showAxRect(self.axHistory[ptr])
+            self.showAxRect(self.axHistory[ptr], pad=0)
 
-    def updateScaleBox(self, p1, p2):
-        r = QtCore.QRectF(p1, p2)
-        r = self.childGroup.mapRectFromParent(r)
+    def updateScaleBox_X(self, p1, p2): #p1, p2 are QPointF types, in the screen coordinates
+#         start = QtCore.QPointF(0,0)
+#         r = QtCore.QRectF(p1, p2)
+#         r = self.childGroup.mapRectFromParent(r) #QRectF with axis coordinates
+#         self.rbScaleBox.setPos(r.topLeft())
+#         self.rbScaleBox.resetTransform()
+#         self.rbScaleBox.scale(r.width(), r.height())
+        
+        #This works!
+        geom = self.geometry()
+        top = geom.top()
+        bottom = geom.bottom()
+        q1 = QtCore.QPointF(p1.x(),top)
+        q2 = QtCore.QPointF(p2.x(),bottom)
+        s = QtCore.QRectF(q1, q2)
+        s = self.childGroup.mapRectFromParent(s) #QRectF with axis coordinates
+        self.rbScaleBox.setPos(s.topLeft())
+        self.rbScaleBox.resetTransform()
+        self.rbScaleBox.scale(s.width(), s.height())
+        self.rbScaleBox.show()
+
+    
+    def updateScaleBox_Y(self, p1, p2): #p1, p2 are QPointF types, in the screen coordinates
+        '''Perform Y zoom'''
+        geom = self.geometry()
+        left = geom.left()
+        right = geom.right()
+        q1 = QtCore.QPointF(left-100,p1.y())
+        q2 = QtCore.QPointF(right,p2.y())
+        
+        
+        r = QtCore.QRectF(q1, q2)
+        r = self.childGroup.mapRectFromParent(r) #QRectF with axis coordinates
         self.rbScaleBox.setPos(r.topLeft())
         self.rbScaleBox.resetTransform()
         self.rbScaleBox.scale(r.width(), r.height())
         self.rbScaleBox.show()
+            
+    def updateScaleBox(self, p1, p2):
+        r = QtCore.QRectF(p1, p2)
+        r = self.childGroup.mapRectFromParent(r)
+        self.rbScaleBox.setPos(r.topLeft()) #QPointF
+        self.rbScaleBox.resetTransform()
+        self.rbScaleBox.scale(r.width(), r.height())
+        self.rbScaleBox.show()
 
-    def showAxRect(self, ax):
-        self.setRange(ax.normalized()) # be sure w, h are correct coordinates
+    def showAxRect(self, ax, pad=None):
+        self.setRange(ax.normalized(),padding=pad) # be sure w, h are correct coordinates
         self.sigRangeChangedManually.emit(self.state['mouseEnabled'])
 
     def allChildren(self, item=None):
