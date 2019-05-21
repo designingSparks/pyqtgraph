@@ -6,6 +6,15 @@ www.pyqtgraph.org
 
 __version__ = '0.11.0.dev0'
 
+# import logging
+# console = logging.StreamHandler()
+# console.setLevel(logging.DEBUG)
+# formatter = logging.Formatter('%(asctime)s.%(msecs)d    %(name)-12s %(levelname)-8s %(message)s', '%H:%M:%S') #includes ms
+# #     formatter = logging.Formatter('%(name)-20s: %(levelname)-8s %(message)s')
+# console.setFormatter(formatter)
+# root_logger = logging.getLogger('')
+# root_logger.addHandler(console) 
+
 ### import all the goodies and add some helper functions for easy CLI use
 
 ## 'Qt' is a local module; it is intended mainly to cover up the differences
@@ -213,6 +222,7 @@ from .graphicsItems.GraphicsObject import *
 from .graphicsItems.PlotItem import * 
 from .graphicsItems.ROI import * 
 from .graphicsItems.InfiniteLine import * 
+from .graphicsItems.CursorLine import * 
 from .graphicsItems.HistogramLUTItem import * 
 from .graphicsItems.GridItem import * 
 from .graphicsItems.GradientLegend import * 

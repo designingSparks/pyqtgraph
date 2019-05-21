@@ -11,9 +11,9 @@ from .. GraphicsWidget import GraphicsWidget
 from ... import debug as debug
 from ... import getConfigOption
 from ...Qt import isQObjectAlive
-# import logging
-# logger = logging.getLogger(__name__)
-# logger.setLevel(logging.DEBUG)
+import logging
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 __all__ = ['ViewBox']
 
@@ -91,6 +91,8 @@ class ViewBox(GraphicsWidget):
     sigStateChanged = QtCore.Signal(object)
     sigTransformChanged = QtCore.Signal(object)
     sigResized = QtCore.Signal(object)
+    sigZoomStackStart = QtCore.Signal(bool)
+    sigZoomStackEnd = QtCore.Signal(bool)
     
     ## mouse modes
     PanMode = 3
@@ -343,11 +345,6 @@ class ViewBox(GraphicsWidget):
         self.state['background'] = color
         self.updateBackground()
     
-    def setZoomMode(self, mode):
-        if mode not in [ViewBox.freeZoom, ViewBox.xZoom, ViewBox.yZoom]:
-            raise Exception("Mode must be ViewBox.freeZoom, ViewBox.xZoom, or ViewBox.yZoom")
-        self._zoomMode = mode
-        
     def setMouseMode(self, mode):
         """
         Set the mouse interaction mode. *mode* must be either ViewBox.PanMode or ViewBox.RectMode.
@@ -1216,9 +1213,8 @@ class ViewBox(GraphicsWidget):
                         _p2 = QtCore.QPointF(_p2.x(), bottom)
             #             print('_p1: {}, {}'.format(_p1.x(), _p1.y()))
             #             print('_p2: {}, {}'.format(_p2.x(), _p2.y()))
-                        
                         ax = QtCore.QRectF(_p1, _p2)
-#                         self.setXRange(self.start_point.x(), point.x(), padding=0)
+#                         self.setXRange(self.start_point.x(), point.x(), padding=0) #works
                         
                     elif self._zoomMode == ViewBox.yZoom:
                         left = self.viewRange()[0][0]
@@ -1228,9 +1224,8 @@ class ViewBox(GraphicsWidget):
                         _p2 = QtCore.QPointF(right, _p2.y())
             #             print('_p1: {}, {}'.format(_p1.x(), _p1.y()))
             #             print('_p2: {}, {}'.format(_p2.x(), _p2.y()))
-            
                         ax = QtCore.QRectF(_p1, _p2)
-#                         self.setYRange(self.start_point.y(), point.y(), padding=0)
+#                         self.setYRange(self.start_point.y(), point.y(), padding=0) #works
                         
                     elif self._zoomMode == ViewBox.freeZoom:
                         p1 = Point(ev.buttonDownPos(ev.button()))
@@ -1238,39 +1233,29 @@ class ViewBox(GraphicsWidget):
                         ax = QtCore.QRectF(p1, p2)
                         ax = self.childGroup.mapRectFromParent(ax)
                         
-                    self.showAxRect(ax, pad=0)
+                    self.showAxRect(ax, pad=0) #apply zoom
+                    
                     self.axHistoryPointer += 1
                     self.axHistory.append(ax) # = self.axHistory[:self.axHistoryPointer] + [ax]
                     
-                    #Zoom stack approach
-                    n = len(self.zoom_stack) - self.zoom_pos - 1
-                    if n:
-                        print('Pruning zoom stack. n={}'.format(n))
-                        self.zoom_stack = self.zoom_stack[:self.zoom_pos+1]
-                    self.zoom_stack.append(ax) #'xMin', 'xMax', 'yMin', 'yMax'
-                    self.zoom_pos += 1
-                    print('Updated zoom stack: {}'.format(ax))
-                    print('zoom_pos: {}, len zoom_stack: {}'.format(self.zoom_pos, len(self.zoom_stack)))
-                    
-                    
+                    self.addToZoomStack(ax) #Zoom stack approach
                     
                 else: #if dragging
-                    delta = pos - self.start_pos
-                    dx = delta.x()
-                    dy = delta.y()
                     
-                    if abs(dx) > abs(dy):
-                        if self._zoomMode != ViewBox.xZoom:
-                            pass
-#                             print('Zoom X')
-#                             self._zoomMode = 'X'
-#                         self.updateScaleBox_X(self.start_pos, ev.pos())
-                    else:
-                        if self._zoomMode != ViewBox.yZoom:
-                            pass
-#                             print('Zoom Y')
-#                             self._zoomMode = 'Y'
-#                         self.updateScaleBox_Y(self.start_pos, ev.pos())
+                    #Could simplify this
+                    if self._zoomMode == ViewBox.xZoom or self._zoomMode == ViewBox.yZoom:
+                        delta = pos - self.start_pos
+                        dx = delta.x()
+                        dy = delta.y()
+                        if abs(dx) > abs(dy):
+                            if self._zoomMode != ViewBox.xZoom:
+                                self._zoomMode = ViewBox.xZoom
+                                logger.debug('Setting ViewBox.xZoom')
+                        else:
+                            if self._zoomMode != ViewBox.yZoom:
+                                self._zoomMode = ViewBox.yZoom
+                                logger.debug('Setting ViewBox.yZoom')
+                            
                     ## update shape of scale box
 #                     self.updateScaleBox(ev.buttonDownPos(), ev.pos()) #Original
                     self.updateScaleBox(self.start_pos, ev.pos())
@@ -1304,8 +1289,10 @@ class ViewBox(GraphicsWidget):
             self._resetTarget()
             self.scaleBy(x=x, y=y, center=center)
             self.sigRangeChangedManually.emit(self.state['mouseEnabled'])
-
-    def storeZoom(self):
+    
+    
+    def initZoomStack(self):
+        '''Store the initial view on the zoom stack and don't increment self.zoom_pos'''
         vr = self.viewRange()
         bottom = vr[1][0]
         top = vr[1][1]
@@ -1315,7 +1302,55 @@ class ViewBox(GraphicsWidget):
         _p2 = QtCore.QPointF(right, bottom)
         ax = QtCore.QRectF(_p1, _p2)
         self.zoom_stack.append(ax)
-        print(self.zoom_stack)
+        logger.debug('Init zoom stack: {}'.format(ax))
+        
+    def addToZoomStack(self, ax):
+        n = len(self.zoom_stack) - self.zoom_pos - 1
+        if n:
+            logger.debug('Pruning zoom stack. n={}'.format(n))
+            self.zoom_stack = self.zoom_stack[:self.zoom_pos+1]
+                
+        self.zoom_stack.append(ax)
+        self.zoom_pos += 1
+        logger.debug('Updated zoom stack: {}'.format(ax))
+        logger.debug('zoom_pos: {}, len zoom_stack: {}'.format(self.zoom_pos, len(self.zoom_stack)))
+        self.sigZoomStackStart.emit(self.zoom_pos > 0)
+        self.sigZoomStackEnd.emit(self.zoom_pos < (len(self.zoom_stack) - 1))
+        
+    def zoom_home(self):
+        logger.debug('Zoomed home')
+        last_ax = self.zoom_stack[self.zoom_pos]
+        home_ax = self.zoom_stack[0]
+        if last_ax != home_ax:
+            self.showAxRect(home_ax, pad=0)
+            self.addToZoomStack(home_ax)
+        
+    def zoom_back(self):
+        logger.debug('Zooming back')
+        if self.zoom_pos > 0:
+            self.zoom_pos -= 1
+            last_ax = self.zoom_stack[self.zoom_pos]
+            self.showAxRect(last_ax, pad=0) #apply zoom
+            
+#         logger.debug('Emitting: {}'.format(self.zoom_pos > 0))
+        self.sigZoomStackStart.emit(self.zoom_pos > 0)
+        self.sigZoomStackEnd.emit(self.zoom_pos < (len(self.zoom_stack) - 1))
+    
+    def zoom_forward(self):
+        logger.debug('Zoomed forward')
+        if self.zoom_pos < (len(self.zoom_stack) - 1):
+            self.zoom_pos += 1
+            last_ax = self.zoom_stack[self.zoom_pos]
+            self.showAxRect(last_ax, pad=0) #apply zoom
+            
+#         logger.debug('Emitting: {}'.format(self.zoom_pos < (len(self.zoom_stack) - 1)))
+        self.sigZoomStackStart.emit(self.zoom_pos > 0)
+        self.sigZoomStackEnd.emit(self.zoom_pos < (len(self.zoom_stack) - 1))
+            
+    def setZoomMode(self, mode):
+        if mode not in [ViewBox.freeZoom, ViewBox.xZoom, ViewBox.yZoom]:
+            raise Exception("Mode must be ViewBox.freeZoom, ViewBox.xZoom, or ViewBox.yZoom")
+        self._zoomMode = mode
         
     def keyPressEvent(self, ev):
         """
