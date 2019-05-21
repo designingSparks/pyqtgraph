@@ -6,7 +6,9 @@ from .ViewBox import ViewBox
 from .. import functions as fn
 import numpy as np
 import weakref
-
+import logging
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 __all__ = ['CursorLine', 'CurLineLabel']
 
@@ -28,7 +30,7 @@ class CursorLine(GraphicsObject):
 
     sigDragged = QtCore.Signal(object)
     sigPositionChangeFinished = QtCore.Signal(object)
-    sigPositionChanged = QtCore.Signal(object)
+    sigPositionChanged = QtCore.Signal(float)
 
     def __init__(self, pos=None, angle=90, pen=None, movable=False, bounds=None,
                  hoverPen=None, label=None, labelOpts=None, span=(0, 1), markers=None, 
@@ -248,7 +250,7 @@ class CursorLine(GraphicsObject):
             self.p = newPos
             self._invalidateCache()
             GraphicsObject.setPos(self, Point(self.p))
-            self.sigPositionChanged.emit(self)
+            self.sigPositionChanged.emit(newPos[0])
 
     def getXPos(self):
         return self.p[0]
@@ -392,8 +394,10 @@ class CursorLine(GraphicsObject):
 
             if not self.moving:
                 return
-
-            self.setPos(self.cursorOffset + self.mapToParent(ev.pos()))
+            
+            newPos = self.cursorOffset + self.mapToParent(ev.pos())
+            logger.debug('Cursor newPos = {}'.format(newPos))
+            self.setPos(newPos)
             self.sigDragged.emit(self)
             if ev.isFinish():
                 self.moving = False
