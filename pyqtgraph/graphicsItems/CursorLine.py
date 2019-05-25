@@ -34,7 +34,7 @@ class CursorLine(GraphicsObject):
 
     def __init__(self, pos=None, angle=90, pen=None, movable=False, bounds=None,
                  hoverPen=None, label=None, labelOpts=None, span=(0, 1), markers=None, 
-                 name=None):
+                 name=None, xvals=None):
         """
         =============== ==================================================================
         **Arguments:**
@@ -111,6 +111,7 @@ class CursorLine(GraphicsObject):
         if label is not None:
             labelOpts = {} if labelOpts is None else labelOpts
             self.label = InfLineLabel(self, text=label, **labelOpts)
+        self.xvals = xvals
 
     def setMovable(self, m):
         """Set whether the line is movable by the user."""
@@ -395,14 +396,30 @@ class CursorLine(GraphicsObject):
             if not self.moving:
                 return
             
+#             newPos = self.cursorOffset + self.mapToParent(ev.pos())
+#             logger.debug('Cursor newPos = {}'.format(newPos))
+#             self.setPos(newPos)
             newPos = self.cursorOffset + self.mapToParent(ev.pos())
+            
+            #Get nearest x
+            newx = self.find_nearest(self.xvals, newPos.x())
+            newPos.setX(newx)
             logger.debug('Cursor newPos = {}'.format(newPos))
             self.setPos(newPos)
+            
+            
             self.sigDragged.emit(self)
             if ev.isFinish():
                 self.moving = False
                 self.sigPositionChangeFinished.emit(self)
-
+                
+    def find_nearest(self, array,value):
+        idx = np.searchsorted(array, value, side="left")
+        if idx > 0 and (idx == len(array) or np.abs(value - array[idx-1]) < np.abs(value - array[idx])):
+            return array[idx-1]
+        else:
+            return array[idx]
+    
     def mouseClickEvent(self, ev):
         if self.moving and ev.button() == QtCore.Qt.RightButton:
             ev.accept()
