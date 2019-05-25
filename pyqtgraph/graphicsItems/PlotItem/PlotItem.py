@@ -1015,7 +1015,7 @@ class PlotItem(GraphicsWidget):
         """Return the specified AxisItem. 
         *name* should be 'left', 'bottom', 'top', or 'right'."""
         self._checkScaleKey(name)
-        return self.axes[name]['item']
+        return self.axes[name]['item'] #pyqtgraph.graphicsItems.AxisItem.AxisItem
         
     def setLabel(self, axis, text=None, units=None, unitPrefix=None, **args):
         """

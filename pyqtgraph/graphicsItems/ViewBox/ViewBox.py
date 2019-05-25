@@ -146,6 +146,7 @@ class ViewBox(GraphicsWidget):
         self._zoomMode = ViewBox.freeZoom
         self.zoom_stack = list() #list of tuples: 'xMin', 'xMax', 'yMin', 'yMax'
         self.zoom_pos = 0
+        self.start_pos = None
         
         self.state = {
             
@@ -199,6 +200,8 @@ class ViewBox(GraphicsWidget):
         self.background.setZValue(-1e6)
         self.background.setPen(fn.mkPen(None))
         self.updateBackground()
+#         self.background.setPen(fn.mkPen({'color': "#8080ff"})) 
+#         self.background.setBrush(fn.mkBrush(192,192,192))
         
         ## Make scale box that is shown when dragging on the view
         self.rbScaleBox = QtGui.QGraphicsRectItem(0, 0, 1, 1)
@@ -1172,11 +1175,14 @@ class ViewBox(GraphicsWidget):
 
 
     def mousePressEvent(self, event):
+#         self.start_pos = event.pos()
         self.start_pos = event.pos()
         self.start_point = self.mapToView(self.start_pos)
-        print('Start point xy: {}, {}'.format(self.start_point.x(), self.start_point.y()))
-        #         self._zoomMode = 'X'
-        print('Mouse press detected')
+        logger.debug('Start point xy: {}, {}'.format(self.start_point.x(), self.start_point.y()))
+        logger.debug('Mouse press detected')
+        rect = self.viewRect()
+        event_valid = rect.contains(self.mapToView(self.start_pos))
+        logger.debug('Pressed in viewbox: {}'.format(event_valid))
         event.ignore()
         
     
@@ -1184,6 +1190,8 @@ class ViewBox(GraphicsWidget):
         ## if axis is specified, event will only affect that axis.
         ev.accept()  ## we accept all buttons
         
+        if self.start_pos is None:
+            return
             
         pos = ev.pos()
         lastPos = ev.lastPos()
@@ -1201,16 +1209,25 @@ class ViewBox(GraphicsWidget):
             if self.state['mouseMode'] == ViewBox.RectMode:
                 
                 if ev.isFinish():  ## Mouse release; change the view scale now
-                    print("finish")
+                    self.start_pos = None
                     self.rbScaleBox.hide()
                     _p1 = self.start_point
                     _p2 = self.mapToView(pos)
                     
                     if self._zoomMode == ViewBox.xZoom:
+                        left = self.viewRange()[0][0]
+                        right = self.viewRange()[0][1]
                         bottom = self.viewRange()[1][0]
                         top = self.viewRange()[1][1]
+                        
+                        x_release = _p2.x()
+                        if x_release < left:
+                            x_release = left
+                        elif x_release > right:
+                            x_release = right
+                        
                         _p1 = QtCore.QPointF(_p1.x(), top)
-                        _p2 = QtCore.QPointF(_p2.x(), bottom)
+                        _p2 = QtCore.QPointF(x_release, bottom)
             #             print('_p1: {}, {}'.format(_p1.x(), _p1.y()))
             #             print('_p2: {}, {}'.format(_p2.x(), _p2.y()))
                         ax = QtCore.QRectF(_p1, _p2)
@@ -1219,9 +1236,19 @@ class ViewBox(GraphicsWidget):
                     elif self._zoomMode == ViewBox.yZoom:
                         left = self.viewRange()[0][0]
                         right = self.viewRange()[0][1]
+                        bottom = self.viewRange()[1][0]
+                        top = self.viewRange()[1][1]
                         
+                        #TODO
+                        y_release = _p2.y()
+                        if y_release < bottom:
+                            y_release = bottom
+                        elif y_release > top:
+                            y_release = top
+                            
+                            
                         _p1 = QtCore.QPointF(left, _p1.y())
-                        _p2 = QtCore.QPointF(right, _p2.y())
+                        _p2 = QtCore.QPointF(right, y_release)
             #             print('_p1: {}, {}'.format(_p1.x(), _p1.y()))
             #             print('_p2: {}, {}'.format(_p2.x(), _p2.y()))
                         ax = QtCore.QRectF(_p1, _p2)
@@ -1241,6 +1268,13 @@ class ViewBox(GraphicsWidget):
                     self.addToZoomStack(ax) #Zoom stack approach
                     
                 else: #if dragging
+                    
+                    rect = self.viewRect()
+#                     point = self.mapToView(pos)
+#                     point = self.mapSceneToView(pos)
+#                     print(point)
+                    event_valid = rect.contains(self.mapToView(pos))
+                    logger.debug('Drag in viewbox: {}'.format(event_valid))
                     
                     #Could simplify this
                     if self._zoomMode == ViewBox.xZoom or self._zoomMode == ViewBox.yZoom:

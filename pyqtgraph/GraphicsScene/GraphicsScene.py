@@ -6,7 +6,7 @@ from .. import functions as fn
 from .. import ptime as ptime
 from .mouseEvents import *
 from .. import debug as debug
-
+import pyqtgraph
 
 if hasattr(QtCore, 'PYQT_VERSION'):
     try:
@@ -300,13 +300,17 @@ class GraphicsScene(QtGui.QGraphicsScene):
             else:
                 #print "drag -> new item"
                 for item in self.itemsNearEvent(event):
-                    #print "check item:", item
+#                     print("check item: {}".format(item))
                     if not item.isVisible() or not item.isEnabled():
                         continue
                     if hasattr(item, 'mouseDragEvent'):
                         event.currentItem = item
                         try:
-                            item.mouseDragEvent(event)
+                            #Don't propagate drag events on AxisItems otherwise unconstrained zoom doesn't work correctly
+                            if type(item) == pyqtgraph.graphicsItems.AxisItem.AxisItem:
+                                pass
+                            else:
+                                item.mouseDragEvent(event) #item should be a viewbox for unconstrained zoom to work correctly
                         except:
                             debug.printExc("Error sending drag event:")
                         if event.isAccepted():
