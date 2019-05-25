@@ -166,6 +166,7 @@ class PlotItem(GraphicsWidget):
             self.axes[k] = {'item': axis, 'pos': pos}
             self.layout.addItem(axis, *pos)
             axis.setZValue(-1000)
+#             axis.setZValue(1000) #to prevent setting the axes background color from painting over the axis lines.
             axis.setFlag(axis.ItemNegativeZStacksBehindParent)
         
         self.titleLabel = LabelItem('', size='11pt', parent=self)

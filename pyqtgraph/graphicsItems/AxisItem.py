@@ -7,6 +7,8 @@ import weakref
 from .. import functions as fn
 from .. import getConfigOption
 from .GraphicsWidget import GraphicsWidget
+import pyqtgraph as pg
+
 
 __all__ = ['AxisItem']
 class AxisItem(GraphicsWidget):
@@ -1018,9 +1020,15 @@ class AxisItem(GraphicsWidget):
         p.setRenderHint(p.Antialiasing, False)
         p.setRenderHint(p.TextAntialiasing, True)
         
-        ## draw long line along axis
+        ## draw long line along axis. This is done on left, bottom, top, right if shown.
         pen, p1, p2 = axisSpec
         p.setPen(pen)
+        
+        #Make the square frame invisible
+        mypen = pg.functions.mkPen({'color': (255,255,255), 'width': 0})  #white
+        p.setPen(mypen)
+        
+        
         p.drawLine(p1, p2)
         p.translate(0.5,0)  ## resolves some damn pixel ambiguity
         
@@ -1034,6 +1042,10 @@ class AxisItem(GraphicsWidget):
         if self.tickFont is not None:
             p.setFont(self.tickFont)
         p.setPen(self.pen())
+        
+#         mypen = pg.functions.mkPen({'color': (255,0,127), 'width': 2}) #magenta
+#         p.setPen(mypen)
+
         for rect, flags, text in textSpecs:
             p.drawText(rect, flags, text)
             #p.drawRect(rect)
