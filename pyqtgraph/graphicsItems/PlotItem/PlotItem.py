@@ -147,6 +147,9 @@ class PlotItem(GraphicsWidget):
         self.vb.sigYRangeChanged.connect(self.sigYRangeChanged)
         
         self.layout.addItem(self.vb, 2, 1)
+        self.vb2 = ViewBox(parent=self)
+        self.layout.addItem(self.vb2, 2, 1)
+        
         self.alpha = 1.0
         self.autoAlpha = True
         self.spectrumMode = False
@@ -167,7 +170,7 @@ class PlotItem(GraphicsWidget):
             self.layout.addItem(axis, *pos)
             axis.setZValue(-1000)
 #             axis.setZValue(1000) #to prevent setting the axes background color from painting over the axis lines.
-            axis.setFlag(axis.ItemNegativeZStacksBehindParent)
+#             axis.setFlag(axis.ItemNegativeZStacksBehindParent)
         
         self.titleLabel = LabelItem('', size='11pt', parent=self)
         self.layout.addItem(self.titleLabel, 0, 1)
@@ -283,6 +286,9 @@ class PlotItem(GraphicsWidget):
     def getViewBox(self):
         """Return the :class:`ViewBox <pyqtgraph.ViewBox>` contained within."""
         return self.vb
+    
+    def getViewBox2(self):
+        return self.vb2
     
     ## Wrap a few methods from viewBox. 
     #Important: don't use a settattr(m, getattr(self.vb, m)) as we'd be leaving the viebox alive

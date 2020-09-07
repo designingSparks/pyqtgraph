@@ -1024,24 +1024,31 @@ class AxisItem(GraphicsWidget):
         pen, p1, p2 = axisSpec
         p.setPen(pen)
         
-        #Make the square frame invisible
-        mypen = pg.functions.mkPen({'color': (255,255,255), 'width': 0})  #white
+        #Make the axis frame invisible
+#         mypen = pg.functions.mkPen({'color': (255,255,255), 'width': 0})  #white
+        mypen = pg.functions.mkPen({'color': (192,192,192), 'width': 1.25})  #grey border
         p.setPen(mypen)
         
         
         p.drawLine(p1, p2)
         p.translate(0.5,0)  ## resolves some damn pixel ambiguity
         
-        ## draw ticks
+        ## draw grid and ticks
+        magpen = pg.functions.mkPen({'color': (255,255,255,0x40), 'width': 1})  #white. Use with grey background
+#         magpen = pg.functions.mkPen({'color': (192,192,192,0x80), 'width': 1})  #white. Use with grey background
+        p.setPen(magpen)
         for pen, p1, p2 in tickSpecs:
-            p.setPen(pen)
+#             p.setPen(pen)
             p.drawLine(p1, p2)
         profiler('draw ticks')
 
         ## Draw all text
+        mypen = pg.functions.mkPen({'color': (0,0,127), 'width': 2})
+        p.setPen(mypen)
         if self.tickFont is not None:
             p.setFont(self.tickFont)
-        p.setPen(self.pen())
+        p.setPen(mypen)
+#         p.setPen(self.pen())
         
 #         mypen = pg.functions.mkPen({'color': (255,0,127), 'width': 2}) #magenta
 #         p.setPen(mypen)
